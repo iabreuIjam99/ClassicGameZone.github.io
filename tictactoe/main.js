@@ -13,97 +13,172 @@ const STATUS_DISPLAY = document.querySelector('.game-notification'),
   ],
   WIN_MESSAGE = () => `El jugador ${currentPlayer} ha ganado!`,
   DRAW_MESSAGE = () => `El juego ha terminado en empate!`,
-  CURRENT_PLAYER_TURN = () => `Turno del jugador ${currentPlayer}`
+  CURRENT_PLAYER_TURN = () => `Turno del jugador ${currentPlayer}`;
 
 // ==================== VARIABLES ==================== //
 let gameActive = true,
-  currentPlayer = "O"
+  currentPlayer = "O",
+  mode = "vsMachine"; // Por defecto, modo de juego vs Machine
 
 // ==================== FUNCTIONS ==================== //
 
 function main() {
-  handleStatusDisplay(CURRENT_PLAYER_TURN())
-  listeners()
+  handleStatusDisplay(CURRENT_PLAYER_TURN());
+  listeners();
 }
 
 function listeners() {
-  document.querySelector('.game-container').addEventListener('click', handleCellClick)
-  document.querySelector('.game-restart').addEventListener('click', handleRestartGame)
+  document.querySelector('.game-container').addEventListener('click', handleCellClick);
+  document.querySelector('.game-restart').addEventListener('click', handleRestartGame);
+  document.querySelector('.game-mode').addEventListener('change', handleModeChange); // Agregar listener para cambio de modo
 }
 
 function handleStatusDisplay(message) {
-  STATUS_DISPLAY.innerHTML = message
+  STATUS_DISPLAY.innerHTML = message;
 }
 
 function handleRestartGame() {
-  gameActive = true
-  currentPlayer = "X"
-  restartGameState()
-  handleStatusDisplay(CURRENT_PLAYER_TURN())
-  document.querySelectorAll('.game-cell').forEach(cell => cell.innerHTML = "")
+  gameActive = true;
+  currentPlayer = "X";
+  restartGameState();
+  handleStatusDisplay(CURRENT_PLAYER_TURN());
+  document.querySelectorAll('.game-cell').forEach(cell => cell.innerHTML = "");
 }
 
-function handleCellClick(clickedCellEvent /** Type Event **/) {
-  const clickedCell = clickedCellEvent.target
+function handleCellClick(clickedCellEvent) {
+  const clickedCell = clickedCellEvent.target;
   if (clickedCell.classList.contains('game-cell')) {
-    const clickedCellIndex = Array.from(clickedCell.parentNode.children).indexOf(clickedCell)
+    const clickedCellIndex = Array.from(clickedCell.parentNode.children).indexOf(clickedCell);
     if (GAME_STATE[clickedCellIndex] !== '' || !gameActive) {
-      return false
+      return false;
     }
 
-    handleCellPlayed(clickedCell, clickedCellIndex)
-    handleResultValidation()
+    handleCellPlayed(clickedCell, clickedCellIndex);
+    handleResultValidation();
   }
 }
 
-function handleCellPlayed(clickedCell /** object HTML **/, clickedCellIndex) {
-  GAME_STATE[clickedCellIndex] = currentPlayer // Agrega en la posición correspondiente el valor ya sea "X" u "O" en el estado actual del juego
-  clickedCell.innerHTML = currentPlayer // Agrega en el HTML el valor del jugador
+function handleCellPlayed(clickedCell, clickedCellIndex) {
+  GAME_STATE[clickedCellIndex] = currentPlayer;
+  clickedCell.innerHTML = currentPlayer;
 }
 
 function handleResultValidation() {
-  let roundWon = false
-  for (let i = 0; i < WINNINGS.length; i++) { // Itera cada uno de las posibles combinaciones ganadores
-    const winCondition = WINNINGS[i] // Guarda la combinación por ejemplo: [0, 1, 2]
+  let roundWon = false;
+  for (let i = 0; i < WINNINGS.length; i++) {
+    const winCondition = WINNINGS[i];
     let position1 = GAME_STATE[winCondition[0]],
       position2 = GAME_STATE[winCondition[1]],
-      position3 = GAME_STATE[winCondition[2]] // Almacena el valor del estado actual del juego según las posiciones de winCondition
+      position3 = GAME_STATE[winCondition[2]];
 
     if (position1 === '' || position2 === '' || position3 === '') {
-      continue; // Si hay algún valor vacio nadie ha ganado aún
+      continue;
     }
     if (position1 === position2 && position2 === position3) {
-      roundWon = true // Si todas las posiciones coinciden entonces, dicho jugador ha ganado la partida
-      break
+      roundWon = true;
+      break;
     }
   }
 
   if (roundWon) {
-    handleStatusDisplay(WIN_MESSAGE())
-    gameActive = false
-    return
+    handleStatusDisplay(WIN_MESSAGE());
+    gameActive = false;
+    return;
   }
 
-  let roundDraw = !GAME_STATE.includes("") // Si todas las celdas tienen valor y la sentencia anterior fue falsa entonces es empate
+  let roundDraw = !GAME_STATE.includes("");
   if (roundDraw) {
-    handleStatusDisplay(DRAW_MESSAGE())
-    gameActive = false
-    return
+    handleStatusDisplay(DRAW_MESSAGE());
+    gameActive = false;
+    return;
   }
 
-  handlePlayerChange()
+  handlePlayerChange();
 }
 
 function handlePlayerChange() {
-  currentPlayer = currentPlayer === "X" ? "O" : "X"
-  handleStatusDisplay(CURRENT_PLAYER_TURN())
-}
-
-function restartGameState() {
-  let i = GAME_STATE.length
-  while (i--) {
-    GAME_STATE[i] = ''
+  currentPlayer = currentPlayer === "X" ? "O" : "X";
+  handleStatusDisplay(CURRENT_PLAYER_TURN());
+  
+  if (mode === "vsMachine" && currentPlayer === "O") {
+    // Si es el turno de la máquina en el modo vs Machine, llama a la función para que juegue la máquina
+    handleMachineMove();
   }
 }
 
-main()
+function handleModeChange(event) {
+  mode = event.target.value; // Actualiza el modo de juego según la selección del usuario
+}
+
+function handleMachineMove() {
+  const bestMove = getBestMove();
+  const cell = document.querySelector(`.game-cell:nth-child(${bestMove.index + 1})`);
+  handleCellPlayed(cell, bestMove.index);
+  handleResultValidation();
+}
+
+function getBestMove() {
+  let bestScore = -Infinity;
+  let move;
+  for (let i = 0; i < 9; i++) {
+    if (GAME_STATE[i] === '') {
+      GAME_STATE[i] = 'O';
+      let score = minimax(GAME_STATE, 0, false);
+      GAME_STATE[i] = '';
+      if (score > bestScore) {
+        bestScore = score;
+        move = i;
+      }
+    }
+  }
+  return {index: move};
+}
+
+function minimax(board, depth, isMaximizing) {
+  let result = checkWinner(board);
+  if (result !== null) {
+    return result;
+  }
+
+  if (isMaximizing) {
+    let bestScore = -Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (board[i] === '') {
+        board[i] = 'O';
+        let score = minimax(board, depth + 1, false);
+        board[i] = '';
+        bestScore = Math.max(score, bestScore);
+      }
+    }
+    return bestScore;
+  } else {
+    let bestScore = Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (board[i] === '') {
+        board[i] = 'X';
+        let score = minimax(board, depth + 1, true);
+        board[i] = '';
+        bestScore = Math.min(score, bestScore);
+      }
+    }
+    return bestScore;
+  }
+}
+
+function checkWinner(board) {
+  for (let i = 0; i < WINNINGS.length; i++) {
+    const [a, b, c] = WINNINGS[i];
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+      return board[a] === 'O' ? 1 : -1;
+    }
+  }
+  return null;
+}
+
+function restartGameState() {
+  for (let i = 0; i < GAME_STATE.length; i++) {
+    GAME_STATE[i] = '';
+  }
+}
+
+main();
